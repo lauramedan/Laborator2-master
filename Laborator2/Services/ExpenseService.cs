@@ -1,4 +1,5 @@
 ﻿using Laborator2.Models;
+using Laborator2.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -9,7 +10,7 @@ namespace Laborator2.Services
 {
     public interface IExpenseService
     {
-        IEnumerable<Expense> GetAll(Type? type = null, DateTime? from = null, DateTime? to = null);
+        PaginatedList<Expense> GetAll(int page, Type? type = null, DateTime? from = null, DateTime? to = null);
         Expense GetById(int id);
         Expense Create(Expense expense);
         Expense Upsert(int id, Expense expense);
@@ -44,14 +45,20 @@ namespace Laborator2.Services
             return existing;
         }
 
-        public IEnumerable<Expense> GetAll(Type? type = null, DateTime? from = null, DateTime? to = null)
+        public PaginatedList<Expense> GetAll(int page, Type? type = null, DateTime? from = null, DateTime? to = null)
         {
-            IQueryable<Expense> result = context.Expenses.Include(c => c.Comments);
+            IQueryable<Expense> result = context.Expenses
+                .OrderBy(e => e.Id)
+                .Include(c => c.Comments);
 
-            if (from == null && to == null && type == null)
-            {
-                return result;
-            }
+            PaginatedList<Expense> paginatedResult = new PaginatedList<Expense>();
+
+            paginatedResult.CurrentPage = page;
+
+            //if (from == null && to == null && type == null)
+            //{
+            //    return result;
+            //}
             if (type != null)
             {
                 result = result.Where(e => e.Type.Equals(type));
@@ -65,7 +72,15 @@ namespace Laborator2.Services
             {
                 result = result.Where(e => e.Date <= to);
             }
-            return result;
+          //  return result;
+
+            paginatedResult.NumberOfPages = (result.Count() - 1) / PaginatedList<Expense>.EntriesPerPage + 1;
+
+            result = result.Skip((page - 1) * PaginatedList<Expense>.EntriesPerPage)
+                            .Take(PaginatedList<Expense>.EntriesPerPage);
+
+            paginatedResult.Entries = result.ToList();
+            return paginatedResult;
         }
 
         public Expense Upsert(int id, Expense expense)

@@ -1,5 +1,6 @@
 ﻿using Laborator2.Models;
 using Laborator2.Services;
+using Laborator2.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -31,9 +32,10 @@ namespace Laborator2.Controllers
         [ProducesResponseType(201)]
         [ProducesResponseType(404)]
         [HttpGet]
-        public IEnumerable<Expense> Get([FromQuery]Type? type, [FromQuery]DateTime? from, [FromQuery]DateTime? to)
+        public PaginatedList<Expense> Get([FromQuery]Type? type, [FromQuery]DateTime? from, [FromQuery]DateTime? to, [FromQuery]int page = 1)
         {
-            return expenseService.GetAll(type, from, to);
+            page = Math.Max(page, 1);
+            return expenseService.GetAll(page, type, from, to);
         }
 
 
