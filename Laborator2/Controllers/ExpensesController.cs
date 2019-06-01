@@ -1,5 +1,6 @@
 ﻿using Laborator2.Models;
 using Laborator2.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -85,6 +86,7 @@ namespace Laborator2.Controllers
         /// <param name="expense">The expense to add</param>
         [ProducesResponseType(201)]
         [ProducesResponseType(404)]
+        [Authorize]
         [HttpPost]
         public void Post([FromBody] Expense expense)
         {
@@ -101,6 +103,7 @@ namespace Laborator2.Controllers
         [HttpPut("{id}")]
         [ProducesResponseType(201)]
         [ProducesResponseType(400)]
+        [Authorize]
         public IActionResult Put(int id, [FromBody] Expense expense)
         {
             var result = expenseService.Upsert(id, expense);
@@ -115,6 +118,7 @@ namespace Laborator2.Controllers
         /// <returns>The deleted expense or null if there is no expense with the given id</returns>
         [ProducesResponseType(201)]
         [ProducesResponseType(404)]
+        [Authorize]
         [HttpDelete("{id}")]
         public IActionResult Delete(int id)
         {
