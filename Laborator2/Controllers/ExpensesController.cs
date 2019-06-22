@@ -31,6 +31,7 @@ namespace Laborator2.Controllers
         /// <returns>List of expenses objects</returns>
         [ProducesResponseType(201)]
         [ProducesResponseType(404)]
+        [Authorize(Roles = "Regular,Admin")]
         [HttpGet]
         public PaginatedList<Expense> Get([FromQuery]Type? type, [FromQuery]DateTime? from, [FromQuery]DateTime? to, [FromQuery]int page = 1)
         {
@@ -46,6 +47,7 @@ namespace Laborator2.Controllers
         /// <returns>The expense with the given id</returns>
         [ProducesResponseType(201)]
         [ProducesResponseType(404)]
+        [Authorize(Roles = "Regular,Admin")]
         [HttpGet("{id}", Name = "Get")]
         public IActionResult Get(int id)
         {
@@ -105,7 +107,7 @@ namespace Laborator2.Controllers
         [HttpPut("{id}")]
         [ProducesResponseType(201)]
         [ProducesResponseType(400)]
-        [Authorize]
+        [Authorize(Roles = "Regular,Admin")]
         public IActionResult Put(int id, [FromBody] Expense expense)
         {
             var result = expenseService.Upsert(id, expense);
@@ -120,7 +122,7 @@ namespace Laborator2.Controllers
         /// <returns>The deleted expense or null if there is no expense with the given id</returns>
         [ProducesResponseType(201)]
         [ProducesResponseType(404)]
-        [Authorize]
+        [Authorize(Roles = "Regular,Admin")]
         [HttpDelete("{id}")]
         public IActionResult Delete(int id)
         {

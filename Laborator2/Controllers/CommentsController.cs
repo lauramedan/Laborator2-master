@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Laborator2.Services;
 using Laborator2.ViewModels;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -26,6 +27,7 @@ namespace Laborator2.Controllers
         /// <returns>A list of comments</returns>
         [ProducesResponseType(201)]
         [ProducesResponseType(400)]
+        [Authorize(Roles = "Regular,Admin")]
         [HttpGet]
         public IEnumerable<CommentGetModel> Get([FromQuery]string filter)
         {
