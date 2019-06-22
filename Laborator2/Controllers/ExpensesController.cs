@@ -88,7 +88,7 @@ namespace Laborator2.Controllers
         /// <param name="expense">The expense to add</param>
         [ProducesResponseType(201)]
         [ProducesResponseType(404)]
-        [Authorize]
+        [Authorize(Roles = "Admin,Regular")]
         [HttpPost]
         public void Post([FromBody] Expense expense)
         {

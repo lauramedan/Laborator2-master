@@ -1,5 +1,7 @@
 ﻿using Laborator2.Models;
 using Laborator2.ViewModels;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System;
@@ -17,7 +19,11 @@ namespace Laborator2.Services
     {
         UserGetModel Authenticate(string username, string password);
         IEnumerable<UserGetModel> GetAll();
+        User GetUserById(int id);
         UserGetModel Register(RegisterPostModel registerInfo);
+        User GetLoggedInUser(HttpContext httpContext);
+        User Delete(int id, User loggedInUser, out int notFoundOrForbidden);
+        User Upsert(int id, User user, User loggedInUser);
     }
 
     public class UsersService : IUsersService
@@ -50,7 +56,8 @@ namespace Laborator2.Services
             {
                 Subject = new ClaimsIdentity(new Claim[]
                 {
-                    new Claim(ClaimTypes.Name, user.Username.ToString())
+                    new Claim(ClaimTypes.Name, user.Username.ToString()),
+                    new Claim(ClaimTypes.Role, user.UserRole.ToString())
                 }),
                 Expires = DateTime.UtcNow.AddDays(7),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
@@ -62,7 +69,9 @@ namespace Laborator2.Services
                 Id = user.Id,
                 Email = user.Email,
                 Username = user.Username,
-                Token = tokenHandler.WriteToken(token)
+                Token = tokenHandler.WriteToken(token),
+                UserRole = user.UserRole,
+                UserRoleStartDate = user.UserRoleStartDate
             };
 
 
@@ -78,8 +87,17 @@ namespace Laborator2.Services
                 Id = user.Id,
                 Email = user.Email,
                 Username = user.Username,
-                Token = null
+                Token = null,
+                UserRole = user.UserRole,
+                UserRoleStartDate = user.UserRoleStartDate
+
             });
+        }
+
+        public User GetUserById(int id)
+        {
+            return context.Users.AsNoTracking()
+                .FirstOrDefault(u => u.Id == id);
         }
 
         private string ComputeSha256Hash(string rawData)
@@ -113,12 +131,100 @@ namespace Laborator2.Services
                 LastName = registerInfo.LastName,
                 FirstName = registerInfo.FirstName,
                 Password = ComputeSha256Hash(registerInfo.Password),
-                Username = registerInfo.Username
+                Username = registerInfo.Username,
+                UserRole = UserRole.Regular,
+                UserRoleStartDate = DateTime.Now
 
             });
             context.SaveChanges();
             return Authenticate(registerInfo.Username, registerInfo.Password);
 
+        }
+
+        // noi
+
+        public User GetLoggedInUser(HttpContext httpContext)
+        {
+            string username = httpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name).Value;
+            return context.Users.FirstOrDefault(u => u.Username == username);
+        }
+
+        public User Delete(int id, User loggedInUser, out int notFoundOrForbidden)
+        {
+            User existing = context.Users.FirstOrDefault(u => u.Id == id); // verifies there's a user with the given ID
+            if (existing == null) // if there isn't one...
+            {
+                notFoundOrForbidden = 1;
+                return null; // there's nothing to delete
+            }
+
+
+            if (
+                (loggedInUser.UserRole == UserRole.Admin) // if I am logged in as an Admin
+                ||  // or
+               (existing.UserRole == UserRole.UserManager && (loggedInUser.UserRoleStartDate.AddMonths(6) <= DateTime.Now)) // if the user I want to delete is a UserManager && I am logged in as a UserManager (at least 6 months old) 
+                ||  // or
+               (existing.UserRole != UserRole.Admin && existing.UserRole != UserRole.UserManager) // if the user I want to delete is not an Admin or a UserManager
+               )
+            {
+                context.Users.Remove(existing); // Then DELETE
+                context.SaveChanges();
+                notFoundOrForbidden = 0;
+                return existing;
+            }
+
+            notFoundOrForbidden = 2;
+            return null;
+        }
+
+        public User Upsert(int id, User user, User loggedInUser)
+        {
+            var existing = context.Users.AsNoTracking().FirstOrDefault(c => c.Id == id);
+            if (existing == null)
+            {
+                if (
+                    (loggedInUser.UserRole == UserRole.Admin) // if the logged in user is an Admin
+                    ||  //or
+                    (user.UserRole == UserRole.UserManager && (loggedInUser.UserRoleStartDate.AddMonths(6) <= DateTime.Now)) // if the user to be added is a UserManager && the logged in is a UserManager (at least 6 months old) 
+                    ||  //or
+                    (user.UserRole != UserRole.Admin && user.UserRole != UserRole.UserManager) // if the user to be added is neither an Admin nor a UserManager
+                )
+                {
+                    user.Password = ComputeSha256Hash(user.Password);
+                    context.Users.Add(user);
+                    context.SaveChanges();
+                    return user;
+                }
+                return null;
+            }
+
+            if (
+                (loggedInUser.UserRole == UserRole.Admin) // if the logged in user is an Admin
+                ||  //or
+               (existing.UserRole == UserRole.UserManager && (loggedInUser.UserRoleStartDate.AddMonths(6) <= DateTime.Now)) // if the user to be updated is a UserManager && the logged in user is a UserManager (at least 6 months old) 
+                ||  //or
+               (existing.UserRole != UserRole.Admin && existing.UserRole != UserRole.UserManager) // if the user to be updated is neither an Admin nor a UserManager
+               )
+            {
+                if (loggedInUser.UserRole == UserRole.UserManager)
+                { // A UserManager cannot update other users' role
+                    //if (user.UserRole != existing.UserRole)
+                    //{
+                    //    return null;
+                    //}
+                    user.UserRole = existing.UserRole; // keep the existing/old role
+                    user.UserRoleStartDate = existing.UserRoleStartDate; // keep the existing role start date
+                }
+
+                user.Id = id;
+
+                user.Password = ComputeSha256Hash(user.Password);
+                context.Users.Update(user); // Then UPDATE
+                context.SaveChanges();
+                return user;
+            }
+
+            return null;
         }
     }
 }
